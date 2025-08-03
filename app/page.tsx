@@ -29,15 +29,15 @@ export default function HomePage() {
     switch (zoomState) {
       case "facilities":
         return {
-          scale: 2.5,
-          x: -200,
-          y: -150,
+          scale: 1.2,
+          x: 200,
+          y: -500,
         }
       case "booking":
         return {
-          scale: 2.2,
-          x: 100,
-          y: -100,
+          scale: 2.0,
+          x: -1100,
+          y: -200,
         }
       default:
         return {
@@ -49,12 +49,12 @@ export default function HomePage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden bg-black">
       {/* Background Image with Animation */}
       <motion.div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: "url('/placeholder.svg?height=1080&width=1920')",
+          backgroundImage: "url('/placeholder.png?height=1080&width=1920')",
         }}
         animate={getImageTransform()}
         transition={{
@@ -187,7 +187,7 @@ export default function HomePage() {
               onClick={handleFacilitiesClick}
               size="lg"
               variant="outline"
-              className="border-white text-white hover:bg-white hover:text-black px-8 py-3 text-lg font-semibold w-full sm:w-auto"
+              className="bg-yellow-900 border-white text-white hover:bg-white hover:text-black px-8 py-3 text-lg font-semibold w-full sm:w-auto"
               disabled={zoomState !== "default"}
             >
               See Facilities
@@ -278,7 +278,7 @@ export default function HomePage() {
             >
               <Mail className="w-8 h-8 mx-auto mb-4 text-yellow-400" />
               <h3 className="font-semibold mb-2">Email</h3>
-              <p className="text-gray-300">info@marrygoldhotel.com</p>
+              <p className="text-gray-300">info@marigoldhotel.com</p>
             </motion.div>
 
             <motion.div
