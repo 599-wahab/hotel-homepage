@@ -4,7 +4,6 @@ import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
-import Link from "next/link"
 import { Phone, Mail, MapPin, Clock } from "lucide-react"
 import BookingForm from "@/components/booking-form"
 
@@ -54,7 +53,7 @@ export default function HomePage() {
       <motion.div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: "url('/placeholder.png?height=1080&width=1920')",
+          backgroundImage: "url('/marigol-1.png?height=1080&width=1920')",
         }}
         animate={getImageTransform()}
         transition={{
@@ -65,80 +64,6 @@ export default function HomePage() {
 
       {/* Overlay */}
       <div className="absolute inset-0 bg-black/40" />
-
-      {/* Navigation */}
-      <nav className="relative z-10 flex items-center justify-between p-4 lg:p-6">
-        <div className="text-2xl font-bold text-white">Marigold</div>
-
-        {/* Desktop Navigation */}
-        <div className="hidden lg:flex items-center space-x-8">
-          <Link href="/" className="text-white hover:text-yellow-300 transition-colors">
-            Home
-          </Link>
-          <Link href="/rooms" className="text-white hover:text-yellow-300 transition-colors">
-            Rooms
-          </Link>
-          <Link href="/facilities" className="text-white hover:text-yellow-300 transition-colors">
-            Facilities
-          </Link>
-          <Link href="/dining" className="text-white hover:text-yellow-300 transition-colors">
-            Dining
-          </Link>
-          <Link href="/services" className="text-white hover:text-yellow-300 transition-colors">
-            In-Room Services
-          </Link>
-        </div>
-
-        <div className="hidden lg:block">
-          <Button
-            onClick={() => setShowBookingForm(true)}
-            className="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-2"
-          >
-            Book Now
-          </Button>
-        </div>
-
-        {/* Mobile Menu Button */}
-        <button className="lg:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-          {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
-      </nav>
-
-      {/* Mobile Navigation Menu */}
-      <AnimatePresence>
-        {isMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="lg:hidden absolute top-16 left-0 right-0 bg-black/90 backdrop-blur-sm z-20 p-4"
-          >
-            <div className="flex flex-col space-y-4">
-              <Link href="/" className="text-white hover:text-yellow-300 transition-colors py-2">
-                Home
-              </Link>
-              <Link href="/rooms" className="text-white hover:text-yellow-300 transition-colors py-2">
-                Rooms
-              </Link>
-              <Link href="/facilities" className="text-white hover:text-yellow-300 transition-colors py-2">
-                Facilities
-              </Link>
-              <Link href="/dining" className="text-white hover:text-yellow-300 transition-colors py-2">
-                Dining
-              </Link>
-              <Link href="/services" className="text-white hover:text-yellow-300 transition-colors py-2">
-                In-Room Services
-              </Link>
-              <Button
-                onClick={() => setShowBookingForm(true)}
-                className="bg-yellow-600 hover:bg-yellow-700 text-white w-full mt-4"
-              >
-                Book Now
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Hero Content */}
       <div className="relative z-10 flex items-center justify-center min-h-screen px-4">
@@ -245,66 +170,7 @@ export default function HomePage() {
         </motion.div>
       </motion.div>
 
-      {/* Contact Section */}
-      <section className="relative z-10 bg-black/80 backdrop-blur-sm py-16 px-4">
-        <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Contact Us</h2>
-            <p className="text-gray-300 text-lg">Get in touch for reservations and inquiries</p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-center text-white"
-            >
-              <Phone className="w-8 h-8 mx-auto mb-4 text-yellow-400" />
-              <h3 className="font-semibold mb-2">Phone</h3>
-              <p className="text-gray-300">+1 (555) 123-4567</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-center text-white"
-            >
-              <Mail className="w-8 h-8 mx-auto mb-4 text-yellow-400" />
-              <h3 className="font-semibold mb-2">Email</h3>
-              <p className="text-gray-300">info@marigoldhotel.com</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="text-center text-white"
-            >
-              <MapPin className="w-8 h-8 mx-auto mb-4 text-yellow-400" />
-              <h3 className="font-semibold mb-2">Address</h3>
-              <p className="text-gray-300">123 Luxury Ave, City Center</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="text-center text-white"
-            >
-              <Clock className="w-8 h-8 mx-auto mb-4 text-yellow-400" />
-              <h3 className="font-semibold mb-2">Reception</h3>
-              <p className="text-gray-300">24/7 Available</p>
-            </motion.div>
-          </div>
-        </div>
-      </section>
+      
       {/* Booking Form Modal */}
       <AnimatePresence>{showBookingForm && <BookingForm onClose={() => setShowBookingForm(false)} />}</AnimatePresence>
     </div>

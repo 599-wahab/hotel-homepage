@@ -39,14 +39,19 @@ export default function RoomManagement() {
   const [showForm, setShowForm] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
 
-  // Load data from localStorage on mount
-  useEffect(() => {
-    const savedRooms = localStorage.getItem("rooms")
-    const savedHistory = localStorage.getItem("roomHistory")
-    
-    if (savedRooms) setRooms(JSON.parse(savedRooms))
-    if (savedHistory) setRoomHistory(JSON.parse(savedHistory))
-  }, [])
+ // load rooms from API on mount
+useEffect(() => {
+  (async () => {
+    try {
+      const res = await fetch("/api/rooms");
+      const data = await res.json();
+      if (res.ok) setRooms(data.rooms || []);
+      else console.error(data.error);
+    } catch (err) {
+      console.error(err);
+    }
+  })();
+}, []);
 
   // Save data to localStorage whenever it changes
   useEffect(() => {
@@ -67,27 +72,72 @@ export default function RoomManagement() {
     setShowForm(true)
   }
 
-  const handleViewHistory = (roomId: string) => {
-    setShowHistory(true)
-  }
+  // view room history (fetch bookings for that room)
+const handleViewHistory = async (roomId: string) => {
+  setShowHistory(true);
+  setCurrentRoom(rooms.find(r => r.id === roomId) || null);
 
-  const handleSaveRoom = (roomData: Room) => {
-    if (currentRoom) {
-      // Update existing room
-      setRooms(rooms.map(r => r.id === roomData.id ? roomData : r))
+  try {
+    const res = await fetch(`/api/bookings?roomId=${roomId}`);
+    const data = await res.json();
+    if (res.ok) setRoomHistory(data.bookings || []);
+    else console.error(data.error);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+  // handler to save (add or update)
+const handleSaveRoom = async (roomData: Room) => {
+  try {
+    if (roomData.id) {
+      // update - you need an endpoint: PUT /api/rooms/[id]
+      const res = await fetch(`/api/rooms/${roomData.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(roomData),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRooms(prev => prev.map(r => r.id === data.room.id ? data.room : r));
+      } else {
+        alert(data.error || "Update failed");
+      }
     } else {
-      // Add new room
-      const newRoom = { ...roomData, id: Date.now().toString() }
-      setRooms([...rooms, newRoom])
+      // create
+      const res = await fetch("/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(roomData),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRooms(prev => [data.room, ...prev]);
+      } else {
+        alert(data.error || "Create failed");
+      }
     }
-    setShowForm(false)
+  } catch (err) {
+    console.error(err);
+    alert("Network error");
   }
+};
 
-  const handleDeleteRoom = (id: string) => {
-    setRooms(rooms.filter(room => room.id !== id))
-    // Also remove history for deleted room
-    setRoomHistory(roomHistory.filter(history => history.roomId !== id))
+  const handleDeleteRoom = async (id: string) => {
+  if (!confirm("Delete this room?")) return;
+  try {
+    const res = await fetch(`/api/rooms/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (res.ok) {
+      setRooms(prev => prev.filter(r => r.id !== id));
+      setRoomHistory(prev => prev.filter(h => h.roomId !== id));
+    } else {
+      alert(data.error || "Delete failed");
+    }
+  } catch (err) {
+    console.error(err);
   }
+};
 
   const handleAddHistory = (history: RoomHistory) => {
     // Keep only the last 20 history records for this room

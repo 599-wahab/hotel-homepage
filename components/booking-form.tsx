@@ -31,12 +31,41 @@ export default function BookingForm({ onClose }: BookingFormProps) {
     { id: "presidential", name: "Presidential Suite", price: "$500/night" },
   ]
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Handle form submission
-    alert("Booking request submitted! We'll contact you shortly.")
-    if (onClose) onClose()
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  try {
+    const res = await fetch("/api/bookings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        roomType: formData.roomType,
+        checkIn: formData.checkIn,
+        checkOut: formData.checkOut,
+        guests: formData.guests
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Booking failed");
+      return;
+    }
+
+    // success
+    alert(`Booking confirmed! Room ${data.room.number} assigned to ${formData.name}`);
+    if (onClose) onClose();
+
+    // optionally redirect or update a UI state
+  } catch (err: any) {
+    console.error(err);
+    alert("Network error. Please try again.");
   }
+};
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({
