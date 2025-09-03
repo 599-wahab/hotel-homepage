@@ -1,372 +1,548 @@
 // components/room-management.tsx
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { logoutAdmin } from "@/lib/admin-auth"
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Room {
-  id: string
-  number: string
-  type: string
-  status: "available" | "occupied" | "maintenance"
-  capacity: number
-  price: number
-  description: string
+  id: string;
+  number: string;
+  type: string;
+  status: "available" | "occupied" | "maintenance";
+  capacity: number;
+  price: number;
+  description: string;
 }
 
 interface RoomHistory {
-  id: string
-  roomId: string
-  guestName: string
-  guestContact: string
-  checkIn: string
-  checkOut: string
-  createdAt: string
+  id: string;
+  roomId: string;
+  guestName: string;
+  guestContact: string;
+  checkIn: string;
+  checkOut: string;
+  createdAt: string;
+}
+
+interface RoomType {
+  id: string;
+  name: string;
+  price_per_night: number;
+  price_per_hour: number;
+  currency: string;
 }
 
 export default function RoomManagement() {
-  const [rooms, setRooms] = useState<Room[]>([])
-  const [roomHistory, setRoomHistory] = useState<RoomHistory[]>([])
-  const [currentRoom, setCurrentRoom] = useState<Room | null>(null)
-  const [showForm, setShowForm] = useState(false)
-  const [showHistory, setShowHistory] = useState(false)
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomHistory, setRoomHistory] = useState<RoomHistory[]>([]);
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+  const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showTypeManager, setShowTypeManager] = useState(false);
 
- // load rooms from API on mount
-useEffect(() => {
-  (async () => {
+  useEffect(() => {
+    (async () => {
+      try {
+        const [rRes, tRes] = await Promise.all([fetch("/api/rooms"), fetch("/api/room-types")]);
+        const roomsData = await rRes.json();
+        const typesData = await tRes.json();
+        if (roomsData?.ok) setRooms(roomsData.rooms || []);
+        else if (Array.isArray(roomsData)) setRooms(roomsData);
+
+        if (typesData?.ok) setRoomTypes(typesData.room_types || []);
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+  }, []);
+
+  const refreshTypes = async () => {
     try {
-      const res = await fetch("/api/rooms");
+      const res = await fetch("/api/room-types");
       const data = await res.json();
-      if (res.ok) setRooms(data.rooms || []);
-      else console.error(data.error);
+      if (data?.ok) setRoomTypes(data.room_types || []);
     } catch (err) {
       console.error(err);
     }
-  })();
-}, []);
+  };
 
-  // Save data to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem("rooms", JSON.stringify(rooms))
-  }, [rooms])
-
-  useEffect(() => {
-    localStorage.setItem("roomHistory", JSON.stringify(roomHistory))
-  }, [roomHistory])
+  const refreshRooms = async () => {
+    try {
+      const res = await fetch("/api/rooms");
+      const data = await res.json();
+      if (data?.ok) setRooms(data.rooms || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleAddRoom = () => {
-    setCurrentRoom(null)
-    setShowForm(true)
-  }
+    setCurrentRoom(null);
+    setShowForm(true);
+  };
 
   const handleEditRoom = (room: Room) => {
-    setCurrentRoom(room)
-    setShowForm(true)
-  }
+    setCurrentRoom(room);
+    setShowForm(true);
+  };
 
-  // view room history (fetch bookings for that room)
-const handleViewHistory = async (roomId: string) => {
-  setShowHistory(true);
-  setCurrentRoom(rooms.find(r => r.id === roomId) || null);
+  const handleViewHistory = async (roomId: string) => {
+    setShowHistory(true);
+    setCurrentRoom(rooms.find((r) => r.id === roomId) || null);
 
-  try {
-    const res = await fetch(`/api/bookings?roomId=${roomId}`);
-    const data = await res.json();
-    if (res.ok) setRoomHistory(data.bookings || []);
-    else console.error(data.error);
-  } catch (err) {
-    console.error(err);
-  }
-};
-
-  // handler to save (add or update)
-const handleSaveRoom = async (roomData: Room) => {
-  try {
-    if (roomData.id) {
-      // update - you need an endpoint: PUT /api/rooms/[id]
-      const res = await fetch(`/api/rooms/${roomData.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(roomData),
-      });
+    try {
+      const res = await fetch(`/api/bookings?roomId=${roomId}`);
       const data = await res.json();
-      if (res.ok) {
-        setRooms(prev => prev.map(r => r.id === data.room.id ? data.room : r));
-      } else {
-        alert(data.error || "Update failed");
-      }
-    } else {
-      // create
-      const res = await fetch("/api/rooms", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(roomData),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setRooms(prev => [data.room, ...prev]);
-      } else {
-        alert(data.error || "Create failed");
-      }
+      if (data.ok) setRoomHistory(data.bookings || []);
+    } catch (err) {
+      console.error(err);
     }
-  } catch (err) {
-    console.error(err);
-    alert("Network error");
-  }
-};
+  };
+
+  const handleSaveRoom = async (roomData: Room) => {
+    try {
+      if (roomData.id) {
+        const res = await fetch(`/api/rooms/${roomData.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(roomData),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          await refreshRooms();
+          setShowForm(false);
+        } else {
+          alert(data.error || "Update failed");
+        }
+      } else {
+        const res = await fetch("/api/rooms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(roomData),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          await refreshRooms();
+          setShowForm(false);
+        } else {
+          alert(data.error || "Create failed");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network error");
+    }
+  };
 
   const handleDeleteRoom = async (id: string) => {
-  if (!confirm("Delete this room?")) return;
-  try {
-    const res = await fetch(`/api/rooms/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (res.ok) {
-      setRooms(prev => prev.filter(r => r.id !== id));
-      setRoomHistory(prev => prev.filter(h => h.roomId !== id));
-    } else {
-      alert(data.error || "Delete failed");
+    if (!confirm("Delete this room?")) return;
+    try {
+      const res = await fetch(`/api/rooms/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        setRooms((prev) => prev.filter((r) => r.id !== id));
+        setRoomHistory((prev) => prev.filter((h) => h.roomId !== id));
+      } else {
+        alert(data.error || "Delete failed");
+      }
+    } catch (err) {
+      console.error(err);
     }
-  } catch (err) {
-    console.error(err);
-  }
-};
+  };
 
-  const handleAddHistory = (history: RoomHistory) => {
-    // Keep only the last 20 history records for this room
-    const filteredHistory = [
-      history,
-      ...roomHistory.filter(h => h.roomId === history.roomId).slice(0, 19)
-    ]
-    
-    setRoomHistory([
-      ...roomHistory.filter(h => h.roomId !== history.roomId),
-      ...filteredHistory
-    ])
-  }
+  const [typeForm, setTypeForm] = useState({
+    name: "",
+    price_per_night: "",
+    price_per_hour: "",
+  });
+
+  const createRoomType = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!typeForm.name) return alert("Name required");
+    try {
+      const res = await fetch("/api/room-types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: typeForm.name,
+          price_per_night: Number(typeForm.price_per_night || 0),
+          price_per_hour: Number(typeForm.price_per_hour || 0),
+          currency: "PKR",
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setTypeForm({ name: "", price_per_night: "", price_per_hour: "" });
+        await refreshTypes();
+      } else {
+        alert(data.error || "Failed");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteRoomType = async (id: string) => {
+    if (!confirm("Delete this room type?")) return;
+    try {
+      const res = await fetch(`/api/room-types?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.ok) {
+        await refreshTypes();
+      } else {
+        alert(data.error || "Failed");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-6 max-w-6xl mx-auto text-white space-y-6">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-2xl font-bold">Room Management</h1>
         <div className="flex gap-2">
-          <Button onClick={handleAddRoom}>Add New Room</Button>
-          <Button variant="outline" onClick={() => logoutAdmin()}>
-            Logout
+          <Button onClick={handleAddRoom} className="bg-yellow-500 hover:bg-yellow-600 text-white">
+            Add New Room
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowTypeManager((s) => !s);
+            }}
+            className="border-white/30 text-white bg-white/10"
+          >
+            Room Types
           </Button>
         </div>
       </div>
 
+      {/* ROOM TYPES */}
+      {showTypeManager && (
+        <Card className="bg-white/6 border border-white/10 backdrop-blur-md">
+          <CardHeader>
+            <CardTitle className="text-white">Room Types</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={createRoomType} className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <Input
+                placeholder="Type name (e.g. Deluxe)"
+                value={typeForm.name}
+                onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })}
+                className="bg-white/10 text-white"
+              />
+              <Input
+                placeholder="Price / night (PKR)"
+                value={typeForm.price_per_night}
+                onChange={(e) => setTypeForm({ ...typeForm, price_per_night: e.target.value })}
+                className="bg-white/10 text-white"
+                type="number"
+              />
+              <Input
+                placeholder="Price / hour (PKR)"
+                value={typeForm.price_per_hour}
+                onChange={(e) => setTypeForm({ ...typeForm, price_per_hour: e.target.value })}
+                className="bg-white/10 text-white"
+                type="number"
+              />
+              <div className="sm:col-span-3 flex gap-2">
+                <Button type="submit" className="bg-yellow-500">Create Type</Button>
+                <Button variant="outline" onClick={() => setShowTypeManager(false)} className="text-white bg-white/10">Close</Button>
+              </div>
+            </form>
+
+            {/* TABLE + CARDS RESPONSIVE */}
+            <div className="overflow-x-auto hidden sm:block">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="text-left text-white/70 px-2 py-1">Name</th>
+                    <th className="text-left text-white/70 px-2 py-1">Price/night (PKR)</th>
+                    <th className="text-left text-white/70 px-2 py-1">Price/hour (PKR)</th>
+                    <th className="text-left text-white/70 px-2 py-1">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {roomTypes.map((t) => (
+                    <tr key={t.id} className="bg-white/5 text-white">
+                      <td className="px-2 py-1">{t.name}</td>
+                      <td className="px-2 py-1">PKR {Number(t.price_per_night || 0).toLocaleString()}</td>
+                      <td className="px-2 py-1">PKR {Number(t.price_per_hour || 0).toLocaleString()}</td>
+                      <td className="px-2 py-1">
+                        <Button size="sm" variant="outline" className="bg-white/5 text-white" onClick={() => deleteRoomType(t.id)}>Delete</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* MOBILE CARDS */}
+            <div className="sm:hidden space-y-3">
+              {roomTypes.map((t) => (
+                <Card key={t.id} className="bg-white/5 border border-white/20">
+                  <CardContent className="p-3 text-white text-sm space-y-1">
+                    <p><strong>Name:</strong> {t.name}</p>
+                    <p><strong>Price/night:</strong> PKR {Number(t.price_per_night || 0).toLocaleString()}</p>
+                    <p><strong>Price/hour:</strong> PKR {Number(t.price_per_hour || 0).toLocaleString()}</p>
+                    <Button size="sm" variant="outline" className="bg-red-500/20 text-red-300 mt-2" onClick={() => deleteRoomType(t.id)}>Delete</Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* MAIN LIST */}
       {showForm ? (
-        <RoomForm 
-          room={currentRoom} 
-          onSave={handleSaveRoom} 
+        <RoomForm
+          room={currentRoom}
+          onSave={handleSaveRoom}
           onCancel={() => setShowForm(false)}
-          onAddHistory={handleAddHistory}
+          roomTypes={roomTypes}
         />
       ) : showHistory ? (
-        <RoomHistoryView 
-          history={roomHistory.filter(h => h.roomId === currentRoom?.id)}
+        <RoomHistoryView
+          history={roomHistory.filter((h) => h.roomId === currentRoom?.id)}
           onBack={() => {
-            setShowHistory(false)
-            setShowForm(true)
+            setShowHistory(false);
+            setShowForm(true);
           }}
         />
       ) : (
-        <RoomList 
-          rooms={rooms} 
-          onEdit={handleEditRoom} 
+        <RoomList
+          rooms={rooms}
+          onEdit={handleEditRoom}
           onDelete={handleDeleteRoom}
           onViewHistory={handleViewHistory}
         />
       )}
     </div>
-  )
+  );
 }
 
-function RoomList({ rooms, onEdit, onDelete, onViewHistory }: { 
-  rooms: Room[], 
-  onEdit: (room: Room) => void, 
-  onDelete: (id: string) => void,
-  onViewHistory: (roomId: string) => void
+/* ---------- Subcomponents (RoomList, RoomForm, RoomHistoryView) ---------- */
+
+function RoomList({
+  rooms,
+  onEdit,
+  onDelete,
+  onViewHistory,
+}: {
+  rooms: Room[];
+  onEdit: (room: Room) => void;
+  onDelete: (id: string) => void;
+  onViewHistory: (roomId: string) => void;
 }) {
   return (
-    <Card>
+    <Card className="bg-white/10 border border-white/20 backdrop-blur-md">
       <CardHeader>
-        <CardTitle>All Rooms</CardTitle>
+        <CardTitle className="text-white">All Rooms</CardTitle>
       </CardHeader>
       <CardContent>
         {rooms.length === 0 ? (
-          <p className="text-center py-8 text-gray-500">No rooms found. Add your first room.</p>
+          <p className="text-center py-8 text-white/60">No rooms found. Add your first room.</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Room Number</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Capacity</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rooms.map(room => (
-                <TableRow key={room.id}>
-                  <TableCell className="font-medium">{room.number}</TableCell>
-                  <TableCell>{room.type}</TableCell>
-                  <TableCell>
-                    <Badge variant={
-                      room.status === "available" ? "default" : 
-                      room.status === "occupied" ? "secondary" : "destructive"
-                    }>
-                      {room.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{room.capacity}</TableCell>
-                  <TableCell>${room.price}/night</TableCell>
-                  <TableCell className="flex gap-2">
-                    <Button size="sm" onClick={() => onEdit(room)}>Edit</Button>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => onViewHistory(room.id)}
-                    >
-                      History
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="destructive"
-                      onClick={() => onDelete(room.id)}
-                    >
-                      Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
+          <>
+            {/* Desktop Table */}
+            <div className="overflow-x-auto hidden sm:block">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="text-white/70 px-2 py-1">Room</th>
+                    <th className="text-white/70 px-2 py-1">Type</th>
+                    <th className="text-white/70 px-2 py-1">Status</th>
+                    <th className="text-white/70 px-2 py-1">Capacity</th>
+                    <th className="text-white/70 px-2 py-1">Price</th>
+                    <th className="text-white/70 px-2 py-1">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rooms.map((room) => (
+                    <tr key={room.id} className="hover:bg-white/5">
+                      <td className="font-medium text-white px-2 py-1">{room.number}</td>
+                      <td className="text-white/80 px-2 py-1">{room.type}</td>
+                      <td className="px-2 py-1">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs ${
+                            room.status === "available"
+                              ? "bg-green-600/20 text-green-300"
+                              : room.status === "occupied"
+                              ? "bg-yellow-600/20 text-yellow-300"
+                              : "bg-red-600/20 text-red-300"
+                          }`}
+                        >
+                          {room.status}
+                        </span>
+                      </td>
+                      <td className="text-white/80 px-2 py-1">{room.capacity}</td>
+                      <td className="text-white/80 px-2 py-1">PKR {Number(room.price).toLocaleString()}</td>
+                      <td className="flex gap-2 px-2 py-1">
+                        <Button size="sm" className="bg-blue-500 hover:bg-blue-600" onClick={() => onEdit(room)}>
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="outline" className="bg-white/5 text-white" onClick={() => onViewHistory(room.id)}>
+                          History
+                        </Button>
+                        <Button size="sm" className="bg-red-500 hover:bg-red-600" onClick={() => onDelete(room.id)}>
+                          Delete
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="sm:hidden space-y-3">
+              {rooms.map((room) => (
+                <Card key={room.id} className="bg-white/5 border border-white/20">
+                  <CardContent className="p-3 text-white text-sm space-y-1">
+                    <p><strong>Room:</strong> {room.number}</p>
+                    <p><strong>Type:</strong> {room.type}</p>
+                    <p>
+                      <strong>Status:</strong>{" "}
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${
+                          room.status === "available"
+                            ? "bg-green-600/20 text-green-300"
+                            : room.status === "occupied"
+                            ? "bg-yellow-600/20 text-yellow-300"
+                            : "bg-red-600/20 text-red-300"
+                        }`}
+                      >
+                        {room.status}
+                      </span>
+                    </p>
+                    <p><strong>Capacity:</strong> {room.capacity}</p>
+                    <p><strong>Price:</strong> PKR {Number(room.price).toLocaleString()}</p>
+                    <div className="flex gap-2 mt-2">
+                      <Button size="sm" className="bg-blue-500 hover:bg-blue-600" onClick={() => onEdit(room)}>Edit</Button>
+                      <Button size="sm" variant="outline" className="bg-white/5 text-white" onClick={() => onViewHistory(room.id)}>History</Button>
+                      <Button size="sm" className="bg-red-500 hover:bg-red-600" onClick={() => onDelete(room.id)}>Delete</Button>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
-function RoomForm({ room, onSave, onCancel, onAddHistory }: { 
-  room: Room | null, 
-  onSave: (room: Room) => void, 
-  onCancel: () => void,
-  onAddHistory: (history: RoomHistory) => void
-}) {
-  const [formData, setFormData] = useState<Room>(room || {
-    id: "",
-    number: "",
-    type: "standard",
-    status: "available",
-    capacity: 2,
-    price: 150,
-    description: ""
-  })
 
-  const [historyForm, setHistoryForm] = useState({
-    guestName: "",
-    guestContact: "",
-    checkIn: new Date().toISOString().split('T')[0],
-    checkOut: new Date().toISOString().split('T')[0]
-  })
+/* ---------- Subcomponents (RoomList, RoomForm, RoomHistoryView) ---------- */
+
+
+
+function RoomForm({
+  room,
+  onSave,
+  onCancel,
+  roomTypes = [],
+}: {
+  room: Room | null;
+  onSave: (room: Room) => void;
+  onCancel: () => void;
+  roomTypes: RoomType[];
+}) {
+  const [formData, setFormData] = useState<Room>(
+    room || {
+      id: "",
+      number: "",
+      type: roomTypes?.[0]?.name || "standard",
+      status: "available",
+      capacity: 2,
+      price: 150,
+      description: "",
+    }
+  );
+
+  useEffect(() => {
+    // when roomTypes change and we're creating new room, prefill price/type
+    if (!room && roomTypes && roomTypes.length > 0) {
+      setFormData((prev) => ({
+        ...prev,
+        type: roomTypes[0].name,
+        price: prev.price || Number(roomTypes[0].price_per_night || 0),
+      }));
+    }
+    // if editing, load room
+    if (room) {
+      setFormData(room);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomTypes, room]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData({ ...formData, [name]: value })
-  }
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: name === "price" || name === "capacity" ? Number(value) : (value as any) });
+  };
 
   const handleSelectChange = (name: string, value: string) => {
-    setFormData({ ...formData, [name]: value })
-  }
-
-  const handleNumberChange = (name: string, value: string) => {
-    setFormData({ ...formData, [name]: Number(value) })
-  }
+    // when switching type, prefill price from type if available
+    const typeObj = roomTypes.find((t) => t.name === value);
+    setFormData({
+      ...formData,
+      [name]: value,
+      price: typeObj ? Number(typeObj.price_per_night || 0) : formData.price,
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onSave(formData)
-  }
-
-  const handleAddHistorySubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onAddHistory({
-      id: Date.now().toString(),
-      roomId: formData.id,
-      guestName: historyForm.guestName,
-      guestContact: historyForm.guestContact,
-      checkIn: historyForm.checkIn,
-      checkOut: historyForm.checkOut,
-      createdAt: new Date().toISOString()
-    })
-    setHistoryForm({
-      guestName: "",
-      guestContact: "",
-      checkIn: new Date().toISOString().split('T')[0],
-      checkOut: new Date().toISOString().split('T')[0]
-    })
-  }
+    e.preventDefault();
+    onSave(formData);
+  };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      <Card>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+      <Card className="bg-white/10 border border-white/20 backdrop-blur-md">
         <CardHeader>
-          <CardTitle>{room ? "Edit Room" : "Add New Room"}</CardTitle>
+          <CardTitle className="text-white">{room ? "Edit Room" : "Add New Room"}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label>Room Number *</Label>
-                <Input 
-                  name="number"
-                  value={formData.number}
-                  onChange={handleChange}
-                  required
-                />
+                <Label className="text-white/80">Room Number *</Label>
+                <Input name="number" value={formData.number} onChange={handleChange} required className="bg-white/10 border-white/30 text-white placeholder-white/50" />
               </div>
-              
               <div>
-                <Label>Room Type *</Label>
-                <Select 
-                  value={formData.type}
-                  onValueChange={value => handleSelectChange("type", value)}
-                >
-                  <SelectTrigger>
+                <Label className="text-white/80">Room Type *</Label>
+                <Select value={formData.type} onValueChange={(v) => handleSelectChange("type", v)}>
+                  <SelectTrigger className="bg-white/10 border-white/30 text-white">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="standard">Standard</SelectItem>
-                    <SelectItem value="deluxe">Deluxe</SelectItem>
-                    <SelectItem value="suite">Suite</SelectItem>
-                    <SelectItem value="presidential">Presidential</SelectItem>
+                    {roomTypes.length > 0 ? (
+                      roomTypes.map((t) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)
+                    ) : (
+                      <>
+                        <SelectItem value="standard">Standard</SelectItem>
+                        <SelectItem value="deluxe">Deluxe</SelectItem>
+                        <SelectItem value="suite">Suite</SelectItem>
+                        <SelectItem value="presidential">Presidential</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
-                <Label>Status *</Label>
-                <Select 
-                  value={formData.status}
-                  onValueChange={value => handleSelectChange("status", value)}
-                >
-                  <SelectTrigger>
+                <Label className="text-white/80">Status *</Label>
+                <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as any })}>
+                  <SelectTrigger className="bg-white/10 border-white/30 text-white">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -376,160 +552,75 @@ function RoomForm({ room, onSave, onCancel, onAddHistory }: {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
-                <Label>Capacity *</Label>
-                <Input 
-                  type="number"
-                  name="capacity"
-                  value={formData.capacity}
-                  onChange={(e) => handleNumberChange("capacity", e.target.value)}
-                  min="1"
-                  required
-                />
+                <Label className="text-white/80">Capacity *</Label>
+                <Input type="number" name="capacity" value={formData.capacity} onChange={handleChange} min="1" required className="bg-white/10 border-white/30 text-white" />
               </div>
-              
+
               <div>
-                <Label>Price per night ($) *</Label>
-                <Input 
-                  type="number"
-                  name="price"
-                  value={formData.price}
-                  onChange={(e) => handleNumberChange("price", e.target.value)}
-                  min="1"
-                  required
-                />
+                <Label className="text-white/80">Price per night (PKR) *</Label>
+                <Input type="number" name="price" value={formData.price} onChange={handleChange} min="1" required className="bg-white/10 border-white/30 text-white" />
               </div>
             </div>
-            
+
             <div>
-              <Label>Description</Label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                className="w-full p-2 border rounded min-h-[100px]"
-                placeholder="Room features, amenities, etc."
-              />
+              <Label className="text-white/80">Description</Label>
+              <textarea name="description" value={formData.description} onChange={handleChange} className="w-full p-2 rounded bg-white/10 border border-white/30 text-white placeholder-white/50 min-h-[100px]" />
             </div>
-            
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {room ? "Update Room" : "Add Room"}
-              </Button>
+
+            <div className="flex flex-col sm:flex-row justify-end gap-2">
+              <Button variant="outline" className="border-white/30 text-white bg-white/10 w-full sm:w-auto" onClick={onCancel}>Cancel</Button>
+              <Button type="submit" className="bg-yellow-500 hover:bg-yellow-600 w-full sm:w-auto">Save Room</Button>
             </div>
           </form>
         </CardContent>
       </Card>
-
-      {formData.id && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Add Previous Guest</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAddHistorySubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label>Guest Name *</Label>
-                  <Input 
-                    value={historyForm.guestName}
-                    onChange={(e) => setHistoryForm({...historyForm, guestName: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <Label>Contact Info *</Label>
-                  <Input 
-                    value={historyForm.guestContact}
-                    onChange={(e) => setHistoryForm({...historyForm, guestContact: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <Label>Check-in Date</Label>
-                  <Input 
-                    type="date"
-                    value={historyForm.checkIn}
-                    onChange={(e) => setHistoryForm({...historyForm, checkIn: e.target.value})}
-                  />
-                </div>
-                
-                <div>
-                  <Label>Check-out Date</Label>
-                  <Input 
-                    type="date"
-                    value={historyForm.checkOut}
-                    onChange={(e) => setHistoryForm({...historyForm, checkOut: e.target.value})}
-                  />
-                </div>
-              </div>
-              
-              <div className="flex justify-end">
-                <Button type="submit" variant="secondary">
-                  Add to History
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
     </motion.div>
-  )
+  );
 }
 
-function RoomHistoryView({ history, onBack }: { 
-  history: RoomHistory[], 
-  onBack: () => void 
-}) {
+function RoomHistoryView({ history, onBack }: { history: RoomHistory[]; onBack: () => void }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
-      <Card>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+      <Card className="bg-white/10 border border-white/20 backdrop-blur-md">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>Room History</CardTitle>
-            <Button variant="outline" onClick={onBack}>
-              Back to Room
-            </Button>
+            <CardTitle className="text-white">Room History</CardTitle>
+            <Button variant="outline" className="border-white/30 text-white hover:bg-white/10" onClick={onBack}>Back</Button>
           </div>
         </CardHeader>
         <CardContent>
           {history.length === 0 ? (
-            <p className="text-center py-8 text-gray-500">No history found for this room.</p>
+            <p className="text-center py-8 text-white/60">No history found for this room.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Guest Name</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Check-in</TableHead>
-                  <TableHead>Check-out</TableHead>
-                  <TableHead>Recorded At</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {history.map(record => (
-                  <TableRow key={record.id}>
-                    <TableCell>{record.guestName}</TableCell>
-                    <TableCell>{record.guestContact}</TableCell>
-                    <TableCell>{new Date(record.checkIn).toLocaleDateString()}</TableCell>
-                    <TableCell>{new Date(record.checkOut).toLocaleDateString()}</TableCell>
-                    <TableCell>{new Date(record.createdAt).toLocaleString()}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="text-white/70 px-2 py-1">Guest Name</th>
+                    <th className="text-white/70 px-2 py-1">Contact</th>
+                    <th className="text-white/70 px-2 py-1">Check-in</th>
+                    <th className="text-white/70 px-2 py-1">Check-out</th>
+                    <th className="text-white/70 px-2 py-1">Recorded At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((record) => (
+                    <tr key={record.id} className="hover:bg-white/5">
+                      <td className="text-white px-2 py-1">{record.guestName}</td>
+                      <td className="text-white/80 px-2 py-1">{record.guestContact}</td>
+                      <td className="text-white/80 px-2 py-1">{new Date(record.checkIn).toLocaleDateString()}</td>
+                      <td className="text-white/80 px-2 py-1">{new Date(record.checkOut).toLocaleDateString()}</td>
+                      <td className="text-white/60 px-2 py-1">{new Date(record.createdAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
     </motion.div>
-  )
+  );
 }

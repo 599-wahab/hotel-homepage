@@ -131,7 +131,6 @@ export default function HomePage() {
             className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20"
           >
             <div className="bg-black/70 text-white px-6 py-3 rounded-full backdrop-blur-sm">
-              <p className="text-center">Exploring Hotel Facilities...</p>
             </div>
           </motion.div>
         )}
@@ -144,7 +143,6 @@ export default function HomePage() {
             className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20"
           >
             <div className="bg-black/70 text-white px-6 py-3 rounded-full backdrop-blur-sm">
-              <p className="text-center">Entering Guest Rooms...</p>
             </div>
           </motion.div>
         )}

@@ -1,47 +1,53 @@
 // app/admin/dashboard/page.tsx
 "use client";
 
-import { useState, useEffect, JSX } from "react";
-import { logoutAdmin, isAdminLoggedIn } from "@/lib/admin-auth";
-import {
-  Calendar,
-  Bed,
-  Utensils,
-  ConciergeBell,
-  Info,
-  User,
-  Settings,
-  LogOut,
-  Menu,
-  ChevronDown,
-  X,
-} from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { isAdminLoggedIn } from "@/lib/admin-auth";
+import AdminNotifications from "@/components/admin-notifications";
 import RoomManagement from "@/components/room-management";
 import BookingManagement from "@/components/booking-management";
 import ServiceManagement from "@/components/service-management";
-import { useRouter } from "next/navigation";
+import {
+  Bed,
+  Calendar,
+  ConciergeBell,
+  Info,
+  Menu,
+  X,
+  ChevronDown,
+} from "lucide-react";
 
-type SelectedTab =
-  | "dashboard"
-  | "rooms"
-  | "bookings"
-  | "dining"
-  | "facilities"
-  | "services"
-  | "maintenance"
-  | "bills"
-  | "profile";
+/* ---------- Types ---------- */
+type Room = {
+  id: string;
+  number?: string;
+  type?: string;
+  status?: "available" | "occupied" | "maintenance" | string;
+  capacity?: number;
+  price?: number | string;
+};
 
-type Tab = { id: SelectedTab; name: string; icon: JSX.Element };
+type Booking = {
+  id: string;
+  guest_name?: string;
+  guest_email?: string;
+  guest_phone?: string;
+  room_id?: string | null;
+  room_number?: string | null;
+  room_type?: string | null;
+  checkin_date?: string;
+  checkout_date?: string;
+  status?: string;
+  created_at?: string;
+};
 
+/* ---------- Component ---------- */
 export default function AdminDashboard() {
-  const [selectedTab, setSelectedTab] = useState<SelectedTab>("dashboard");
-  const [isClient, setIsClient] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [mobileView, setMobileView] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const router = useRouter();
 
+  // auth + client-only
+  const [isClient, setIsClient] = useState(false);
   useEffect(() => {
     setIsClient(true);
     if (!isAdminLoggedIn()) {
@@ -49,287 +55,358 @@ export default function AdminDashboard() {
     }
   }, [router]);
 
-  if (!isClient) return null;
+  // UI state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<
+    | "dashboard"
+    | "rooms"
+    | "bookings"
+    | "dining"
+    | "facilities"
+    | "services"
+    | "maintenance"
+    | "bills"
+    | "profile"
+  >("dashboard");
 
-  const tabs: Tab[] = [
-    { id: "dashboard", name: "Dashboard", icon: <Bed size={18} /> },
-    { id: "rooms", name: "Room Management", icon: <Bed size={18} /> },
-    { id: "bookings", name: "Bookings", icon: <Calendar size={18} /> },
-    { id: "dining", name: "Dining", icon: <Utensils size={18} /> },
-    { id: "facilities", name: "Facilities", icon: <ConciergeBell size={18} /> },
-    { id: "services", name: "Services", icon: <Info size={18} /> },
-    { id: "maintenance", name: "Maintenance", icon: <Settings size={18} /> },
-    { id: "bills", name: "Billing", icon: <Info size={18} /> },
-    { id: "profile", name: "Profile", icon: <User size={18} /> },
-  ];
+  // data state
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogout = () => {
-    logoutAdmin();
-    router.push("/admin/login");
+  // fetch helper
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [roomsRes, bookingsRes] = await Promise.all([
+        fetch("/api/rooms").then((r) => r.json()).catch(() => []),
+        fetch("/api/bookings").then((r) => r.json()).catch(() => []),
+      ]);
+
+      setRooms(Array.isArray(roomsRes) ? roomsRes : roomsRes.rooms ?? []);
+      setBookings(Array.isArray(bookingsRes) ? bookingsRes : bookingsRes.bookings ?? []);
+    } catch (err: any) {
+      console.error(err);
+      setError(String(err?.message ?? err));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+  useEffect(() => {
+    fetchData();
+    const id = setInterval(fetchData, 20000);
+    return () => clearInterval(id);
+  }, []);
 
-      {/* Sidebar */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-30 transform transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          md:translate-x-0 md:relative md:w-64 w-[260px]
-          bg-gradient-to-b from-yellow-700 to-yellow-800 text-white shadow-xl flex flex-col`}
-      >
-        <div className="p-6 flex-shrink-0 border-b border-yellow-600">
-          <div className="flex items-center gap-3">
-            <div className="bg-yellow-500 p-1 rounded-lg">
-              <Bed size={24} />
+  // Derived stats
+  const stats = useMemo(() => {
+    const totalBookings = bookings.length;
+    const occupied = rooms.filter((r) => r.status === "occupied").length;
+    const totalRooms = rooms.length || 1;
+    const occupancyRate = Math.round((occupied / totalRooms) * 100);
+
+    let revenue = 0;
+    bookings.forEach((b) => {
+      if (!b.checkin_date || !b.checkout_date) return;
+      if (b.status?.toLowerCase() === "cancelled") return;
+      const checkin = new Date(b.checkin_date);
+      const checkout = new Date(b.checkout_date);
+      const nights = Math.max(
+        0,
+        Math.ceil((checkout.getTime() - checkin.getTime()) / (1000 * 60 * 60 * 24))
+      );
+      const room = rooms.find((r) => r.id === b.room_id || r.number === b.room_number);
+      revenue += (Number(room?.price ?? 0)) * nights;
+    });
+
+    const pendingRequests = bookings.filter((b) => b.status?.toLowerCase() === "pending").length;
+
+    return {
+      totalBookings,
+      occupancyRate: isNaN(occupancyRate) ? 0 : occupancyRate,
+      revenue: Math.round(revenue * 100) / 100,
+      pendingRequests,
+    };
+  }, [rooms, bookings]);
+
+  // Recent bookings
+  const recentBookings = useMemo(() => {
+    return [...bookings]
+      .sort(
+        (a, b) =>
+          (new Date(b.created_at ?? 0).getTime() || 0) -
+          (new Date(a.created_at ?? 0).getTime() || 0)
+      )
+      .slice(0, 8);
+  }, [bookings]);
+
+  if (!isClient) return null;
+
+  /* ---------- UI ---------- */
+  return (
+    <div className="min-h-screen relative bg-neutral-900">
+      {/* background */}
+      <div
+        className="absolute inset-0 bg-cover bg-center z-0"
+        style={{ backgroundImage: "url('/marigol-1.png')", filter: "brightness(0.45) saturate(0.9)" }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/60 z-10" />
+
+      <div className="relative z-20 flex h-full">
+        {/* Sidebar overlay for mobile */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/40 z-20 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar */}
+        <aside
+          className={`absolute md:relative inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
+            md:translate-x-0 w-[260px]
+            bg-gradient-to-b from-yellow-800/95 to-yellow-700/95 text-white shadow-xl flex flex-col
+            ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+        >
+          <div className="px-6 py-5 flex items-center gap-3 border-b border-yellow-600">
+            <div className="bg-yellow-500 p-2 rounded-lg shadow-sm">
+              <Bed size={22} />
             </div>
             <div>
               <h1 className="text-lg font-bold">Marigold Hotel</h1>
               <p className="text-yellow-200 text-xs">Admin Dashboard</p>
             </div>
           </div>
-        </div>
 
-        <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setSelectedTab(tab.id);
-                setSidebarOpen(false);
-              }}
-              className={`flex items-center w-full px-4 py-3 text-left rounded-md transition
-                ${
-                  selectedTab === tab.id
-                    ? "bg-yellow-600/90 border-l-4 border-yellow-300"
-                    : "hover:bg-yellow-600/50"
-                }`}
-            >
-              <span className="mr-3">{tab.icon}</span>
-              <span className="truncate">{tab.name}</span>
-            </button>
-          ))}
-
-          <button
-            onClick={handleLogout}
-            className="mt-4 flex items-center w-full px-4 py-3 text-left rounded-md hover:bg-yellow-600/50"
-          >
-            <LogOut size={18} className="mr-3" />
-            Logout
-          </button>
-        </nav>
-
-        <div className="p-4 text-xs text-yellow-200 border-t border-yellow-600">
-          © {new Date().getFullYear()} Marigold Hotel
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <div className="flex-1 md:ml-64 flex flex-col overflow-auto">
-        <header className="bg-white shadow-sm sticky top-0 z-20">
-          <div className="flex items-center justify-between px-4 sm:px-8 py-3">
-            <div className="flex items-center gap-3">
+          {/* Improved nav */}
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+            {[
+              { id: "dashboard", name: "Dashboard", icon: <Calendar size={16} /> },
+              { id: "rooms", name: "Room Management", icon: <Bed size={16} /> },
+              { id: "bookings", name: "Bookings", icon: <Calendar size={16} /> },
+              { id: "dining", name: "Dining", icon: <ConciergeBell size={16} /> },
+              { id: "facilities", name: "Facilities", icon: <Info size={16} /> },
+              { id: "services", name: "Services", icon: <Info size={16} /> },
+              { id: "maintenance", name: "Maintenance", icon: <Info size={16} /> },
+              { id: "bills", name: "Billing", icon: <Info size={16} /> },
+              { id: "profile", name: "Profile", icon: <Bed size={16} /> },
+            ].map((t) => (
               <button
-                onClick={() => setSidebarOpen((s) => !s)}
-                aria-label="Toggle navigation"
-                className="p-2 rounded-md md:hidden text-gray-700 hover:bg-gray-100"
+                key={t.id}
+                onClick={() => {
+                  setSelectedTab(t.id as any);
+                  setSidebarOpen(false);
+                }}
+                className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-md transition text-sm font-medium duration-150
+                  ${selectedTab === t.id
+                    ? "bg-yellow-600/95 border-l-4 border-yellow-300 text-white"
+                    : "hover:bg-yellow-600/30 text-yellow-100"}`}
               >
-                {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+                <span className="flex-shrink-0">{t.icon}</span>
+                <span className="truncate">{t.name}</span>
               </button>
-              <h2 className="text-lg font-semibold text-gray-800 capitalize">
-                {tabs.find((t) => t.id === selectedTab)?.name ?? "Dashboard"}
-              </h2>
-            </div>
+            ))}
+          </nav>
+        </aside>
 
-            {/* Mobile user menu */}
-            {mobileView ? (
-              <div className="relative">
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-1 text-sm text-gray-600"
-                >
-                  <div className="bg-gray-200 border-2 border-dashed rounded-xl w-8 h-8" />
-                  <ChevronDown size={16} />
-                </button>
-
-                {userMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20">
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <LogOut size={16} className="mr-2" />
-                      Logout
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
+        {/* Main content */}
+        <div className="flex-1">
+          {/* Header */}
+          <header className="sticky top-0 z-40 backdrop-blur-md bg-white/10">
+            <div className="flex items-center justify-between px-4 md:px-8 py-3">
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="bg-gray-200 border-2 border-dashed rounded-xl w-8 h-8" />
-                  <span className="text-sm text-gray-600">Admin</span>
-                </div>
                 <button
-                  onClick={handleLogout}
-                  className="flex items-center text-sm text-gray-600 hover:text-gray-900"
+                  onClick={() => setSidebarOpen((s) => !s)}
+                  className="md:hidden p-2 rounded bg-white/6 hover:bg-white/12"
                 >
-                  <LogOut size={16} className="mr-1" />
-                  Logout
+                  {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
                 </button>
+                <h2 className="text-lg font-semibold text-white/95 capitalize">
+                  {selectedTab}
+                </h2>
               </div>
-            )}
-          </div>
-        </header>
+              <div className="flex items-center gap-3">
+                <AdminNotifications />
+              </div>
+            </div>
+          </header>
 
-        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto">
-          {selectedTab === "dashboard" && <DashboardOverview />}
-          {selectedTab === "rooms" && <RoomManagement />}
-          {selectedTab === "bookings" && <BookingManagement />}
-          {selectedTab === "services" && <ServiceManagement />}
-          {selectedTab === "dining" && <DiningManagement />}
-          {selectedTab === "facilities" && <FacilitiesManagement />}
-          {selectedTab === "maintenance" && <MaintenanceManagement />}
-          {selectedTab === "bills" && <BillingManagement />}
-          {selectedTab === "profile" && <ProfileManagement />}
-        </main>
+          {/* Content */}
+          <main className="p-4 md:p-6 lg:p-8">
+            {selectedTab === "dashboard" && (
+              <>
+                {/* Stats */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <StatCard title="Total Bookings" value={String(stats.totalBookings)} icon={<Calendar />} />
+                  <StatCard title="Occupancy Rate" value={`${stats.occupancyRate}%`} icon={<Bed />} />
+                  <StatCard title="Revenue" value={`PKR ${stats.revenue.toLocaleString()}`} icon={<ConciergeBell />} />
+                  <StatCard title="Pending Requests" value={String(stats.pendingRequests)} icon={<Info />} />
+                </div>
+
+                {/* Recent + Occupancy */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Recent Bookings */}
+                  <div className="bg-white/6 border border-white/10 rounded-lg p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-medium text-white/95">Recent Bookings</h3>
+                      <button onClick={fetchData} className="text-sm text-white/80 hover:text-white">Refresh</button>
+                    </div>
+
+                    {/* Desktop table */}
+                    <div className="overflow-x-auto hidden md:block">
+                      <table className="min-w-full text-sm text-white/90">
+                        <thead className="text-xs text-white/70 border-b border-white/12">
+                          <tr>
+                            <th className="py-3 px-2">Guest</th>
+                            <th className="py-3 px-2">Room</th>
+                            <th className="py-3 px-2">Check-in</th>
+                            <th className="py-3 px-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recentBookings.map((b) => (
+                            <tr key={b.id} className="hover:bg-white/5">
+                              <td className="py-3 px-2">{b.guest_name ?? "—"}</td>
+                              <td className="py-3 px-2">{b.room_number ?? b.room_type ?? "—"}</td>
+                              <td className="py-3 px-2">
+                                {b.checkin_date ? new Date(b.checkin_date).toLocaleDateString() : "—"}
+                              </td>
+                              <td className="py-3 px-2"><StatusBadge status={b.status ?? "unknown"} /></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile cards */}
+                    <div className="md:hidden space-y-3">
+                      {recentBookings.length === 0 ? (
+                        <div className="py-6 text-center text-white/70">No bookings</div>
+                      ) : (
+                        recentBookings.map((b) => (
+                          <div key={b.id} className="p-3 rounded-lg bg-white/10 border border-white/15">
+                            <p className="text-sm font-medium text-white">{b.guest_name ?? "—"}</p>
+                            <p className="text-xs text-white/70">Room: {b.room_number ?? b.room_type ?? "—"}</p>
+                            <p className="text-xs text-white/70">Check-in: {b.checkin_date ? new Date(b.checkin_date).toLocaleDateString() : "—"}</p>
+                            <div className="mt-2"><StatusBadge status={b.status ?? "unknown"} small /></div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Occupancy */}
+                  <div className="bg-white/6 border border-white/10 rounded-lg p-4 shadow-sm">
+                    <h3 className="text-lg font-medium mb-3 text-white/95">Room Occupancy</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {rooms.length === 0 ? (
+                        <div className="col-span-full text-center py-6 text-white/70">No rooms</div>
+                      ) : (
+                        rooms.map((r) => (
+                          <div key={r.id} className="p-3 border border-white/8 rounded-lg bg-white/4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="text-sm font-medium text-white/95">{r.number ?? "—"}</div>
+                                <div className="text-xs text-white/70">{r.type ?? "—"}</div>
+                              </div>
+                              <StatusBadge status={r.status ?? "available"} small />
+                            </div>
+                            <div className="mt-3 text-sm text-white/70">
+                              PKR {Number(r.price ?? 0).toLocaleString()}/night
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Tabs */}
+            {selectedTab === "rooms" && <RoomManagement />}
+            {selectedTab === "bookings" && <BookingManagement />}
+            {selectedTab === "services" && <ServiceManagement />}
+            {selectedTab === "dining" && <DiningManagement />}
+            {selectedTab === "facilities" && <FacilitiesManagement />}
+            {selectedTab === "maintenance" && <MaintenanceManagement />}
+            {selectedTab === "bills" && <BillingManagement />}
+            {selectedTab === "profile" && <ProfileManagement />}
+          </main>
+        </div>
       </div>
     </div>
   );
 }
 
-/* Dashboard Overview */
-function DashboardOverview() {
-  const stats = [
-    {
-      label: "Total Bookings",
-      value: "142",
-      icon: <Calendar size={20} className="text-yellow-500" />,
-    },
-    {
-      label: "Occupancy Rate",
-      value: "78%",
-      icon: <Bed size={20} className="text-yellow-500" />,
-    },
-    {
-      label: "Revenue",
-      value: "$42,380",
-      icon: <ConciergeBell size={20} className="text-yellow-500" />,
-    },
-    {
-      label: "Pending Requests",
-      value: "12",
-      icon: <Info size={20} className="text-yellow-500" />,
-    },
-  ];
+/* ---------- Helpers ---------- */
+function StatCard({ title, value, icon }: { title: string; value: string; icon: React.ReactNode }) {
+  return (
+    <div className="bg-white/6 p-4 rounded-lg border border-white/8 shadow-sm">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs text-white/80">{title}</p>
+          <p className="text-xl font-bold mt-1 text-white">{value}</p>
+        </div>
+        <div className="p-2 bg-yellow-100/20 rounded">{icon}</div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status, small }: { status: string; small?: boolean }) {
+  const s = (status || "").toLowerCase();
+  let cls = "bg-white/10 text-white/80";
+
+  switch (s) {
+    case "confirmed":
+      cls = "bg-blue-600/20 text-blue-400";
+      break;
+    case "occupied":
+      cls = "bg-yellow-600/20 text-yellow-300";
+      break;
+    case "available":
+      cls = "bg-emerald-600/20 text-emerald-400";
+      break;
+    case "pending":
+      cls = "bg-yellow-600/20 text-yellow-400";
+      break;
+    case "cancelled":
+      cls = "bg-red-600/20 text-red-400";
+      break;
+    case "maintenance":
+      cls = "bg-orange-600/20 text-orange-400";
+      break;
+    case "checked_in":
+      cls = "bg-cyan-600/20 text-cyan-400";
+      break;
+    case "checked_out":
+      cls = "bg-purple-600/20 text-purple-400";
+      break;
+    default:
+      cls = "bg-gray-600/20 text-gray-300";
+      break;
+  }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {stats.map((stat, i) => (
-          <div
-            key={i}
-            className="bg-white p-4 rounded-lg border border-gray-200 shadow-xs"
-          >
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-gray-500 text-xs sm:text-sm">{stat.label}</p>
-                <p className="text-xl sm:text-2xl font-bold mt-1">
-                  {stat.value}
-                </p>
-              </div>
-              <div className="p-1.5 bg-yellow-100 rounded-lg">{stat.icon}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Recent Bookings & Room Occupancy */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-white p-4 sm:p-5 rounded-lg border border-gray-200 shadow-xs overflow-auto">
-          <h3 className="text-base sm:text-lg font-semibold mb-3">
-            Recent Bookings
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs">Guest</th>
-                  <th className="px-3 py-2 text-left text-xs">Room</th>
-                  <th className="px-3 py-2 text-left text-xs">Check-in</th>
-                  <th className="px-3 py-2 text-left text-xs">Status</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {[...Array(5)].map((_, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-3 py-2.5 whitespace-nowrap text-sm">
-                      John Doe
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-sm">
-                      Deluxe Suite
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-sm">
-                      2023-06-1{i + 2}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span className="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                        Confirmed
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 sm:p-5 rounded-lg border border-gray-200 shadow-xs">
-          <h3 className="text-base sm:text-lg font-semibold mb-3">
-            Room Occupancy
-          </h3>
-          <div className="overflow-x-auto">
-            <div className="h-52 min-w-[400px] flex items-end space-x-2 sm:space-x-3">
-              {[...Array(7)].map((_, i) => (
-                <div key={i} className="flex flex-col items-center flex-1">
-                  <div
-                    className="w-full bg-gradient-to-t from-yellow-500 to-yellow-400 rounded-t"
-                    style={{ height: `${30 + Math.random() * 70}%` }}
-                  />
-                  <span className="text-xs mt-2 text-gray-500">
-                    Room {i + 101}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <span
+      className={`${cls} inline-flex items-center px-2 py-0.5 rounded-full ${
+        small ? "text-xs" : "text-sm"
+      }`}
+    >
+      {status}
+    </span>
   );
 }
 
-/* Placeholder Components */
-function DiningManagement() {
-  return <div className="bg-white p-6 rounded-xl">Dining Management</div>;
-}
-function FacilitiesManagement() {
-  return <div className="bg-white p-6 rounded-xl">Facilities Management</div>;
-}
-function MaintenanceManagement() {
-  return <div className="bg-white p-6 rounded-xl">Maintenance Management</div>;
-}
-function BillingManagement() {
-  return <div className="bg-white p-6 rounded-xl">Billing Management</div>;
-}
-function ProfileManagement() {
-  return <div className="bg-white p-6 rounded-xl">Profile Management</div>;
-}
+
+/* ---------- Placeholders ---------- */
+function DiningManagement() { return <div className="bg-white p-6 rounded-xl">Dining Management</div>; }
+function FacilitiesManagement() { return <div className="bg-white p-6 rounded-xl">Facilities Management</div>; }
+function MaintenanceManagement() { return <div className="bg-white p-6 rounded-xl">Maintenance Management</div>; }
+function BillingManagement() { return <div className="bg-white p-6 rounded-xl">Billing Management</div>; }
+function ProfileManagement() { return <div className="bg-white p-6 rounded-xl">Profile Management</div>; }

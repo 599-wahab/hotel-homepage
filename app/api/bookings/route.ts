@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing required fields" }, { status: 400 });
     }
 
+    // find an available room of that type
     const findQ = `
       SELECT r.* FROM rooms r
       WHERE r.type = $1
@@ -49,12 +50,22 @@ export async function POST(req: Request) {
 
     const room = found[0];
 
+    // compute nights and price
+    const checkin = new Date(checkIn);
+    const checkout = new Date(checkOut);
+    const nights = Math.max(
+      0,
+      Math.ceil((checkout.getTime() - checkin.getTime()) / (1000 * 60 * 60 * 24))
+    );
+    const roomPrice = Number(room.price ?? 0);
+    const totalPrice = Math.round(roomPrice * nights * 100) / 100;
+
     const insertQ = `
       INSERT INTO bookings (
         guest_name, guest_email, guest_phone,
         room_id, room_number, room_type,
-        checkin_date, checkout_date, status
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        checkin_date, checkout_date, status, price, currency
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *
     `;
     const bookingRows = await run(insertQ, [
@@ -66,7 +77,9 @@ export async function POST(req: Request) {
       room.type,
       checkIn,
       checkOut,
-      "confirmed"
+      "confirmed",
+      totalPrice,
+      "PKR",
     ]);
     const booking = bookingRows && bookingRows[0];
 

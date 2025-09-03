@@ -16,7 +16,7 @@ export default function RoomsPage() {
     {
       id: 1,
       name: "Standard Room",
-      price: "$150",
+      price: "PKR 150",
       image: "/placeholder.svg?height=400&width=600",
       capacity: "2 Guests",
       bed: "Queen Bed",
@@ -33,7 +33,7 @@ export default function RoomsPage() {
     {
       id: 2,
       name: "Deluxe Room",
-      price: "$220",
+      price: "PKR 220",
       image: "/placeholder.svg?height=400&width=600",
       capacity: "3 Guests",
       bed: "King Bed",
@@ -50,7 +50,7 @@ export default function RoomsPage() {
     {
       id: 3,
       name: "Executive Suite",
-      price: "$350",
+      price: "PKR 350",
       image: "/placeholder.svg?height=400&width=600",
       capacity: "4 Guests",
       bed: "King Bed + Sofa",
@@ -67,7 +67,7 @@ export default function RoomsPage() {
     {
       id: 4,
       name: "Presidential Suite",
-      price: "$500",
+      price: "PKR 500",
       image: "/placeholder.svg?height=400&width=600",
       capacity: "6 Guests",
       bed: "King Bed + 2 Singles",
