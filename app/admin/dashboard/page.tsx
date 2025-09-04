@@ -270,12 +270,12 @@ export default function AdminDashboard() {
                         <tbody>
                           {recentBookings.map((b) => (
                             <tr key={b.id} className="hover:bg-white/5">
-                              <td className="py-3 px-2">{b.guest_name ?? "—"}</td>
-                              <td className="py-3 px-2">{b.room_number ?? b.room_type ?? "—"}</td>
-                              <td className="py-3 px-2">
+                              <td className="py-3 text-center px-2">{b.guest_name ?? "—"}</td>
+                              <td className="py-3 text-center px-2">{b.room_number ?? b.room_type ?? "—"}</td>
+                              <td className="py-3 text-center px-2">
                                 {b.checkin_date ? new Date(b.checkin_date).toLocaleDateString() : "—"}
                               </td>
-                              <td className="py-3 px-2"><StatusBadge status={b.status ?? "unknown"} /></td>
+                              <td className="py-3 text-center px-2"><StatusBadge status={b.status ?? "unknown"} /></td>
                             </tr>
                           ))}
                         </tbody>

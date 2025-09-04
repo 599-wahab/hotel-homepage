@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -45,22 +46,32 @@ export default function RoomManagement() {
   const [showForm, setShowForm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showTypeManager, setShowTypeManager] = useState(false);
+  const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
-    (async () => {
-      try {
-        const [rRes, tRes] = await Promise.all([fetch("/api/rooms"), fetch("/api/room-types")]);
-        const roomsData = await rRes.json();
-        const typesData = await tRes.json();
-        if (roomsData?.ok) setRooms(roomsData.rooms || []);
-        else if (Array.isArray(roomsData)) setRooms(roomsData);
+  (async () => {
+    setLoading(true); // Start loader when fetching
+    try {
+      const [rRes, tRes] = await Promise.all([
+        fetch("/api/rooms"),
+        fetch("/api/room-types"),
+      ]);
 
-        if (typesData?.ok) setRoomTypes(typesData.room_types || []);
-      } catch (err) {
-        console.error(err);
-      }
-    })();
-  }, []);
+      const roomsData = await rRes.json();
+      const typesData = await tRes.json();
+
+      if (roomsData?.ok) setRooms(roomsData.rooms || []);
+      else if (Array.isArray(roomsData)) setRooms(roomsData);
+
+      if (typesData?.ok) setRoomTypes(typesData.room_types || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false); // Stop loader after fetch
+    }
+  })();
+}, []);
 
   const refreshTypes = async () => {
     try {
@@ -73,14 +84,17 @@ export default function RoomManagement() {
   };
 
   const refreshRooms = async () => {
-    try {
-      const res = await fetch("/api/rooms");
-      const data = await res.json();
-      if (data?.ok) setRooms(data.rooms || []);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  setLoading(true);
+  try {
+    const res = await fetch("/api/rooms");
+    const data = await res.json();
+    if (data?.ok) setRooms(data.rooms || []);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleAddRoom = () => {
     setCurrentRoom(null);
@@ -259,31 +273,38 @@ export default function RoomManagement() {
             </form>
 
             {/* TABLE + CARDS RESPONSIVE */}
-            <div className="overflow-x-auto hidden sm:block">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="text-left text-white/70 px-2 py-1">Name</th>
-                    <th className="text-left text-white/70 px-2 py-1">Price/night (PKR)</th>
-                    <th className="text-left text-white/70 px-2 py-1">Price/hour (PKR)</th>
-                    <th className="text-left text-white/70 px-2 py-1">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {roomTypes.map((t) => (
-                    <tr key={t.id} className="bg-white/5 text-white">
-                      <td className="px-2 py-1">{t.name}</td>
-                      <td className="px-2 py-1">PKR {Number(t.price_per_night || 0).toLocaleString()}</td>
-                      <td className="px-2 py-1">PKR {Number(t.price_per_hour || 0).toLocaleString()}</td>
-                      <td className="px-2 py-1">
-                        <Button size="sm" variant="outline" className="bg-white/5 text-white" onClick={() => deleteRoomType(t.id)}>Delete</Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="hidden md:block bg-white/6 rounded-xl border border-white/10 shadow-sm overflow-hidden backdrop-blur-md">
+              {loading ? (
+                <div className="p-6 flex justify-center items-center">
+                  <Loader2 className="animate-spin text-yellow-500" size={28} />
+                </div>
+              ) : (
+                <div className="overflow-x-auto hidden sm:block">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr>
+                        <th className="text-left text-white/70 px-2 py-1">Name</th>
+                        <th className="text-left text-white/70 px-2 py-1">Price/night (PKR)</th>
+                        <th className="text-left text-white/70 px-2 py-1">Price/hour (PKR)</th>
+                        <th className="text-left text-white/70 px-2 py-1">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {roomTypes.map((t) => (
+                        <tr key={t.id} className="bg-white/5 text-white">
+                          <td className="px-2 py-1">{t.name}</td>
+                          <td className="px-2 py-1">PKR {Number(t.price_per_night || 0).toLocaleString()}</td>
+                          <td className="px-2 py-1">PKR {Number(t.price_per_hour || 0).toLocaleString()}</td>
+                          <td className="px-2 py-1">
+                            <Button size="sm" variant="outline" className="bg-white/5 text-white" onClick={() => deleteRoomType(t.id)}>Delete</Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-
             {/* MOBILE CARDS */}
             <div className="sm:hidden space-y-3">
               {roomTypes.map((t) => (
@@ -323,6 +344,7 @@ export default function RoomManagement() {
           onEdit={handleEditRoom}
           onDelete={handleDeleteRoom}
           onViewHistory={handleViewHistory}
+          loading={loading}
         />
       )}
     </div>
@@ -336,11 +358,13 @@ function RoomList({
   onEdit,
   onDelete,
   onViewHistory,
+  loading,
 }: {
   rooms: Room[];
   onEdit: (room: Room) => void;
   onDelete: (id: string) => void;
   onViewHistory: (roomId: string) => void;
+  loading: boolean;
 }) {
   return (
     <Card className="bg-white/10 border border-white/20 backdrop-blur-md">
@@ -348,7 +372,11 @@ function RoomList({
         <CardTitle className="text-white">All Rooms</CardTitle>
       </CardHeader>
       <CardContent>
-        {rooms.length === 0 ? (
+        {loading ? (
+    <div className="p-6 flex justify-center items-center">
+      <Loader2 className="animate-spin text-yellow-500" size={32} />
+    </div>
+  )  : rooms.length === 0 ? (
           <p className="text-center py-8 text-white/60">No rooms found. Add your first room.</p>
         ) : (
           <>
@@ -357,20 +385,20 @@ function RoomList({
               <table className="min-w-full text-sm">
                 <thead>
                   <tr>
-                    <th className="text-white/70 px-2 py-1">Room</th>
-                    <th className="text-white/70 px-2 py-1">Type</th>
-                    <th className="text-white/70 px-2 py-1">Status</th>
-                    <th className="text-white/70 px-2 py-1">Capacity</th>
-                    <th className="text-white/70 px-2 py-1">Price</th>
-                    <th className="text-white/70 px-2 py-1">Actions</th>
+                    <th className="text-white/70 px-3 py-2 text-center w-[14%]">Room</th>
+                    <th className="text-white/70 px-3 py-2 text-center w-[14%]">Type</th>
+                    <th className="text-white/70 px-3 py-2 text-center w-[9%]">Status</th>
+                    <th className="text-white/70 px-3 py-2 text-center w-[14%]">Capacity</th>
+                    <th className="text-white/70 px-3 py-2 text-center w-[14%]">Price</th>
+                    <th className="text-white/70 px-3 py-2 text-center w-[8%]">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rooms.map((room) => (
                     <tr key={room.id} className="hover:bg-white/5">
-                      <td className="font-medium text-white px-2 py-1">{room.number}</td>
-                      <td className="text-white/80 px-2 py-1">{room.type}</td>
-                      <td className="px-2 py-1">
+                      <td className="font-medium text-white text-center px-2 py-1">{room.number}</td>
+                      <td className="text-white/80 text-center px-2 py-1">{room.type}</td>
+                      <td className="px-2 text-center  py-1">
                         <span
                           className={`px-2 py-1 rounded-full text-xs ${
                             room.status === "available"
@@ -383,9 +411,9 @@ function RoomList({
                           {room.status}
                         </span>
                       </td>
-                      <td className="text-white/80 px-2 py-1">{room.capacity}</td>
-                      <td className="text-white/80 px-2 py-1">PKR {Number(room.price).toLocaleString()}</td>
-                      <td className="flex gap-2 px-2 py-1">
+                      <td className="text-white/80 text-center px-2 py-1">{room.capacity}</td>
+                      <td className="text-white/80 text-center px-2 py-1">PKR {Number(room.price).toLocaleString()}</td>
+                      <td className="flex gap-2 text-center px-2 py-1">
                         <Button size="sm" className="bg-blue-500 hover:bg-blue-600" onClick={() => onEdit(room)}>
                           Edit
                         </Button>
@@ -587,7 +615,7 @@ function RoomHistoryView({ history, onBack }: { history: RoomHistory[]; onBack: 
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-white">Room History</CardTitle>
-            <Button variant="outline" className="border-white/30 text-white hover:bg-white/10" onClick={onBack}>Back</Button>
+            <Button variant="outline" className="bg-white/5 text-whit" onClick={onBack}>Back</Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -598,21 +626,21 @@ function RoomHistoryView({ history, onBack }: { history: RoomHistory[]; onBack: 
               <table className="min-w-full text-sm">
                 <thead>
                   <tr>
-                    <th className="text-white/70 px-2 py-1">Guest Name</th>
-                    <th className="text-white/70 px-2 py-1">Contact</th>
-                    <th className="text-white/70 px-2 py-1">Check-in</th>
-                    <th className="text-white/70 px-2 py-1">Check-out</th>
-                    <th className="text-white/70 px-2 py-1">Recorded At</th>
+                    <th className="text-white/70 text-center px-2 py-1">Guest Name</th>
+                    <th className="text-white/70 text-center px-2 py-1">Contact</th>
+                    <th className="text-white/70 text-center px-2 py-1">Check-in</th>
+                    <th className="text-white/70 text-center px-2 py-1">Check-out</th>
+                    <th className="text-white/70 text-center px-2 py-1">Recorded At</th>
                   </tr>
                 </thead>
                 <tbody>
                   {history.map((record) => (
                     <tr key={record.id} className="hover:bg-white/5">
-                      <td className="text-white px-2 py-1">{record.guestName}</td>
-                      <td className="text-white/80 px-2 py-1">{record.guestContact}</td>
-                      <td className="text-white/80 px-2 py-1">{new Date(record.checkIn).toLocaleDateString()}</td>
-                      <td className="text-white/80 px-2 py-1">{new Date(record.checkOut).toLocaleDateString()}</td>
-                      <td className="text-white/60 px-2 py-1">{new Date(record.createdAt).toLocaleString()}</td>
+                      <td className="text-white text-center px-2 py-1">{record.guestName}</td>
+                      <td className="text-white/80 text-center px-2 py-1">{record.guestContact}</td>
+                      <td className="text-white/80 text-center px-2 py-1">{new Date(record.checkIn).toLocaleDateString()}</td>
+                      <td className="text-white/80 text-center px-2 py-1">{new Date(record.checkOut).toLocaleDateString()}</td>
+                      <td className="text-white/60 text-center px-2 py-1">{new Date(record.createdAt).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
